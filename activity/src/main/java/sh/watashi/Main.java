@@ -129,11 +129,22 @@ public class Main {
         if (type == null) return null;
         switch (type) {
             case "PushEvent" -> {
-                int commits = 0;
-                if (payload != null && payload.get("size") instanceof Number num) {
-                    commits = num.intValue();
+                String branch = null;
+                if (payload != null && payload.get("ref") instanceof String r) {
+                    if (r.startsWith("refs/heads/")) {
+                        branch = r.substring("refs/heads/".length());
+                    } else {
+                        branch = r;
+                    }
                 }
-                return "Pushed " + commits + (commits == 1 ? " commit" : " commits") + " to " + repoName;
+                String branchStr = branch != null ? " to '" + branch + "'" : "";
+
+                if (payload != null && payload.get("size") instanceof Number num) {
+                    int commits = num.intValue();
+                    return "Pushed " + commits + (commits == 1 ? " commit" : " commits") + branchStr + " in " + repoName;
+                } else {
+                    return "Pushed commits" + branchStr + " in " + repoName;
+                }
             }
             case "IssuesEvent" -> {
                 String action = payload != null ? (String) payload.get("action") : "opened";

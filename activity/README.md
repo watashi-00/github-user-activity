@@ -46,8 +46,8 @@ java -jar target/activity-1.0-SNAPSHOT.jar github-activity watashi-00
 
 Output:
 ```text
+- Pushed commits to 'master' in watashi-00/github-user-activity
 - Created branch 'master' in watashi-00/github-user-activity
-- Pushed 3 commits to watashi-00/task-cli
 - Starred kamranahmedse/developer-roadmap
 ```
 
@@ -55,3 +55,9 @@ Show help menu:
 ```bash
 java -jar target/activity-1.0-SNAPSHOT.jar help
 ```
+
+## GitHub API Note
+
+> [!NOTE]
+> During development and exploration of the GitHub API, we discovered that GitHub removed slow-performing fields from the public events API stream in late 2025 (such as `size` / commit count and detailed `commits` lists inside `PushEvent` and `PullRequestEvent` payloads) to improve delivery latency.
+> As a result, the application dynamically displays the target branch instead (e.g. `Pushed commits to 'master' in ...`) rather than showing hardcoded commit counts or falling back to `0`.
