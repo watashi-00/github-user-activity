@@ -2,11 +2,15 @@ package sh.watashi.json;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class JsonLexer {
     
     private final String input;
     private int pos;
+
+    private static final Pattern JSON_NUMBER_PATTERN = 
+        Pattern.compile("^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$");
 
     public JsonLexer(String input) {
         this.input = input;
@@ -51,7 +55,6 @@ public class JsonLexer {
 
                 case '"' -> tokens.add(readString());
 
-
                 default -> {
                     if (Character.isWhitespace(current)) {
                         pos++;
@@ -74,63 +77,85 @@ public class JsonLexer {
                     }
                 }
             }
-            
         }
 
         tokens.add(new Token(TokenType.EOF, ""));
         return tokens;
-
     }
 
     private Token readString() {
-        pos++; // ignore first "
-
-        int start = pos;
+        pos++; // ignore starting "
+        StringBuilder sb = new StringBuilder();
 
         while (pos < input.length()) {
-            if (input.charAt(pos) == '"' &&
-                input.charAt(pos - 1) != '\\') {
+            char c = input.charAt(pos);
 
-                String value = input.substring(start, pos);
-
-                pos++; // ignore "
-
-                return new Token(TokenType.STRING, value);
+            if (c == '"') {
+                pos++; // ignore closing "
+                return new Token(TokenType.STRING, sb.toString());
             }
 
-            pos++;
+            if (c == '\\') {
+                pos++;
+                if (pos >= input.length()) {
+                    throw new RuntimeException("Unterminated string escape at pos " + pos);
+                }
+                char escapeChar = input.charAt(pos);
+                switch (escapeChar) {
+                    case '"' -> sb.append('"');
+                    case '\\' -> sb.append('\\');
+                    case '/' -> sb.append('/');
+                    case 'b' -> sb.append('\b');
+                    case 'f' -> sb.append('\f');
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case 't' -> sb.append('\t');
+                    case 'u' -> {
+                        if (pos + 4 >= input.length()) {
+                            throw new RuntimeException("Invalid unicode escape sequence at pos " + pos);
+                        }
+                        String hex = input.substring(pos + 1, pos + 5);
+                        for (int i = 0; i < 4; i++) {
+                            char hc = hex.charAt(i);
+                            if (!((hc >= '0' && hc <= '9') || (hc >= 'a' && hc <= 'f') || (hc >= 'A' && hc <= 'F'))) {
+                                throw new RuntimeException("Invalid hex digit in unicode escape: " + hex + " at pos " + pos);
+                            }
+                        }
+                        int code = Integer.parseInt(hex, 16);
+                        sb.append((char) code);
+                        pos += 4;
+                    }
+                    default -> throw new RuntimeException("Invalid escape sequence: \\" + escapeChar + " at pos " + pos);
+                }
+                pos++;
+            } else if (c < 32) {
+                throw new RuntimeException("Raw control character not allowed in string: " + (int) c + " at pos " + pos);
+            } else {
+                sb.append(c);
+                pos++;
+            }
         }
 
-        throw new RuntimeException("Unterminated string");
+        throw new RuntimeException("Unterminated string starting at position " + (pos - sb.length() - 1));
     }
 
     private Token readNumber() {
         int start = pos;
 
-        if (input.charAt(pos) == '-') {
-            pos++;
-        }
-
-        while (pos < input.length() &&
-            Character.isDigit(input.charAt(pos))) {
-            pos++;
-        }
-
-        if (pos < input.length() &&
-            input.charAt(pos) == '.') {
-
-            pos++;
-
-            while (pos < input.length() &&
-                Character.isDigit(input.charAt(pos))) {
+        while (pos < input.length()) {
+            char c = input.charAt(pos);
+            if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E') {
                 pos++;
+            } else {
+                break;
             }
         }
 
-        return new Token(
-            TokenType.NUMBER,
-            input.substring(start, pos)
-        );
-    }
+        String lexeme = input.substring(start, pos);
+        if (!JSON_NUMBER_PATTERN.matcher(lexeme).matches()) {
+            throw new RuntimeException("Invalid JSON number: " + lexeme + " at pos " + start);
+        }
 
+        return new Token(TokenType.NUMBER, lexeme);
+    }
 }
