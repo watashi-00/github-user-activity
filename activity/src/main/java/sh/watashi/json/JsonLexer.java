@@ -6,7 +6,7 @@ import java.util.List;
 public class JsonLexer {
     
     private final String input;
-    private int position;
+    private int pos;
 
     public JsonLexer(String input) {
         this.input = input;
@@ -15,43 +15,64 @@ public class JsonLexer {
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
 
-        while (position < input.length()) {
-            char current = input.charAt(position);
+        while (pos < input.length()) {
+            char current = input.charAt(pos);
 
             switch (current) {
                 case '{' -> {
                     tokens.add(new Token(TokenType.LBRACE, "{"));
-                    position++;
+                    pos++;
                 }
 
                 case '}' -> {
                     tokens.add(new Token(TokenType.RBRACE, "}"));
-                    position++;
+                    pos++;
                 }
 
                 case '[' -> {
                     tokens.add(new Token(TokenType.LBRACKET, "["));
-                    position++;
+                    pos++;
                 }
 
                 case ']' -> {
                     tokens.add(new Token(TokenType.RBRACKET, "]"));
-                    position++;
+                    pos++;
                 }
 
                 case ':' -> {
                     tokens.add(new Token(TokenType.COLON, ":"));
-                    position++;
+                    pos++;
                 }
 
                 case ',' -> {
                     tokens.add(new Token(TokenType.COMMA, ","));
-                    position++;
+                    pos++;
                 }
 
                 case '"' -> tokens.add(readString());
 
-                default ->  System.out.println("...");
+
+                default -> {
+                    if (Character.isWhitespace(current)) {
+                        pos++;
+                    } else if (current == '-' || Character.isDigit(current)) {
+                        tokens.add(readNumber());
+                    } else if (input.startsWith("true", pos)) {
+                        tokens.add(new Token(TokenType.TRUE, "true"));
+                        pos += 4;
+                    } else if (input.startsWith("false", pos)) {
+                        tokens.add(new Token(TokenType.FALSE, "false"));
+                        pos += 5;
+                    } else if (input.startsWith("null", pos)) {
+                        tokens.add(new Token(TokenType.NULL, "null"));
+                        pos += 4;
+                    } else {
+                        throw new RuntimeException(
+                            "Unexpected character '" + current +
+                            "' at pos " + pos
+                        );
+                    }
+                }
             }
             
         }
@@ -62,25 +83,54 @@ public class JsonLexer {
     }
 
     private Token readString() {
-        position++; // ignore first "
+        pos++; // ignore first "
 
-        int start = position;
+        int start = pos;
 
-        while (position < input.length()) {
-            if (input.charAt(position) == '"' &&
-                input.charAt(position - 1) != '\\') {
+        while (pos < input.length()) {
+            if (input.charAt(pos) == '"' &&
+                input.charAt(pos - 1) != '\\') {
 
-                String value = input.substring(start, position);
+                String value = input.substring(start, pos);
 
-                position++; // ignore "
+                pos++; // ignore "
 
                 return new Token(TokenType.STRING, value);
             }
 
-            position++;
+            pos++;
         }
 
         throw new RuntimeException("Unterminated string");
+    }
+
+    private Token readNumber() {
+        int start = pos;
+
+        if (input.charAt(pos) == '-') {
+            pos++;
+        }
+
+        while (pos < input.length() &&
+            Character.isDigit(input.charAt(pos))) {
+            pos++;
+        }
+
+        if (pos < input.length() &&
+            input.charAt(pos) == '.') {
+
+            pos++;
+
+            while (pos < input.length() &&
+                Character.isDigit(input.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        return new Token(
+            TokenType.NUMBER,
+            input.substring(start, pos)
+        );
     }
 
 }
